@@ -41,13 +41,13 @@ spec:
                   spec:
                     containers:
                       - name: bootstrapper
-                        image: default-route-openshift-image-registry.apps.cluster-7nd25.7nd25.sandbox293.opentlc.com/rhacs-operator/bootstrapper:v0
+                        image: image-registry.openshift-image-registry.svc:5000/rhacs-operator/rhacs-bootstrapper-job-image:latest
                         command:
-                          - '/bootstrap.sh'
+                          - '/rhacs-bootstrap.sh'
                         resources: {}
                         terminationMessagePath: /dev/termination-log
                         terminationMessagePolicy: File
-                        imagePullPolicy: IfNotPresent
+                        imagePullPolicy: Always
                     restartPolicy: Never
                     terminationGracePeriodSeconds: 30
                     dnsPolicy: ClusterFirst
