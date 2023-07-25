@@ -1,13 +1,13 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: binding-policy-secret-stackrox
+  name: rhacs-secrets-in-managed-clusters
   namespace: rhacs-operator
 placementRef:
-  name: not-in-cluster
+  name: managed-clusters
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
-- name: policy-secrets-stackrox-secured-cluster
+- name: rhacs-secrets
   kind: Policy
   apiGroup: policy.open-cluster-management.io

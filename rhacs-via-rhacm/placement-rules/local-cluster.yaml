@@ -2,7 +2,7 @@ apiVersion: apps.open-cluster-management.io/v1
 kind: PlacementRule
 metadata:
   namespace: open-cluster-management
-  name: in-cluster
+  name: local-cluster
 spec:
   clusterConditions:
   - status: "True"
@@ -15,7 +15,7 @@ apiVersion: apps.open-cluster-management.io/v1
 kind: PlacementRule
 metadata:
   namespace: rhacs-operator
-  name: in-cluster
+  name: local-cluster
 spec:
   clusterConditions:
   - status: "True"

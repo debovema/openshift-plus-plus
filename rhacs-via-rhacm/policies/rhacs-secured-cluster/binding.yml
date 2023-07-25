@@ -1,13 +1,13 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: binding-sa-rb
+  name: rhacs-secured-cluster-in-managed-clusters
   namespace: rhacs-operator
 placementRef:
-  name: in-cluster
+  name: managed-clusters
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
-- name: rhacs-bootstrapper-policy-role
+- name: rhacs-secured-cluster
   kind: Policy
   apiGroup: policy.open-cluster-management.io

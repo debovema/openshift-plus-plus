@@ -1,13 +1,13 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: bootstrap-job-image
+  name: rhacs-bootstrap-job-in-local-cluster
   namespace: rhacs-operator
 placementRef:
-  name: in-cluster
+  name: local-cluster
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
-- name: bootstrap-job-image
+- name: rhacs-bootstrap-job
   kind: Policy
   apiGroup: policy.open-cluster-management.io

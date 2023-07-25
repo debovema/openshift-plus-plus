@@ -2,7 +2,7 @@ apiVersion: apps.open-cluster-management.io/v1
 kind: PlacementRule
 metadata:
   namespace: rhacs-operator
-  name: not-in-cluster
+  name: managed-clusters
 spec:
   clusterConditions:
   - status: "True"

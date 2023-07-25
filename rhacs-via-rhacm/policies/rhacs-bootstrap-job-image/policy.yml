@@ -1,7 +1,7 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
-  name: bootstrap-job-image
+  name: rhacs-bootstrap-job-image
   namespace: rhacs-operator
   annotations:
     # policy.open-cluster-management.io/standards: NIST SP 800-53

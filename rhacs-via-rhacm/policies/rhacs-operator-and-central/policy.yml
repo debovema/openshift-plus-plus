@@ -1,12 +1,8 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
-  name: policy-advanced-managed-cluster-security
-  namespace: rhacs-operator
-  annotations:
-    policy.open-cluster-management.io/standards: NIST SP 800-53
-    policy.open-cluster-management.io/categories: CM Configuration Management
-    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+  name: rhacs-operator-and-central
+  namespace: open-cluster-management
 spec:
   remediationAction: enforce
   disabled: false
@@ -15,23 +11,11 @@ spec:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: managed-cluster-security-ns
+        name: rhacs-namespace
       spec:
-        remediationAction: enforce
+        remediationAction: inform
         severity: high
         object-templates:
-          - complianceType: musthave
-            objectDefinition:
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: stackrox
-          - complianceType: musthave
-            objectDefinition:
-              apiVersion: v1
-              kind: Namespace
-              metadata:
-                name: rhacs-operator
           - complianceType: musthave
             objectDefinition:
               apiVersion: v1
@@ -50,7 +34,7 @@ spec:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: managed-cluster-security-operator-sub
+        name: rhacs-operator-subscription
       spec:
         remediationAction: inform
         severity: high
@@ -63,7 +47,7 @@ spec:
                 name: rhacs-operator
                 namespace: rhacs-operator
               spec:
-                channel: latest
+                channel: latest # can be changed to a fixed version
                 installPlanApproval: Automatic
                 name: rhacs-operator
                 source: redhat-operators
@@ -72,7 +56,7 @@ spec:
       apiVersion: policy.open-cluster-management.io/v1
       kind: ConfigurationPolicy
       metadata:
-        name: managed-cluster-security-endpoints
+        name: rhacs-central
       spec:
         remediationAction: inform
         severity: high
@@ -80,23 +64,31 @@ spec:
           - complianceType: musthave
             objectDefinition:
               apiVersion: platform.stackrox.io/v1alpha1
-              kind: SecuredCluster
+              kind: Central
               metadata:
                 namespace: rhacs-operator
-                name: stackrox-secured-cluster-services
+                name: stackrox-central-services
               spec:
-                clusterName: |
-                  {{ fromClusterClaim "name" }}
-                auditLogs:
-                  collection: Auto
-                centralEndpoint: |
-                  {{hub (lookup "route.openshift.io/v1" "Route" "rhacs-operator" "central").spec.host hub}}:443 #We assume the hub is the Central here
-                admissionControl:
-                  listenOnCreates: false
-                  listenOnEvents: true
-                  listenOnUpdates: false
-                perNode:
-                  collector:
-                    collection: KernelModule
-                    imageFlavor: Regular
-                  taintToleration: TolerateTaints
+                central:
+                  exposure:
+                    loadBalancer:
+                      enabled: false
+                      port: 443
+                    nodePort:
+                      enabled: false
+                    route:
+                      enabled: true
+                  persistence:
+                    persistentVolumeClaim:
+                      claimName: stackrox-db
+                egress:
+                  connectivityPolicy: Online
+                scanner:
+                  analyzer:
+                    scaling:
+                      autoScaling: Enabled
+                      maxReplicas: 5
+                      minReplicas: 2
+                      replicas: 3
+                  scannerComponent: Enabled
+
