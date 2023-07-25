@@ -1,0 +1,114 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: Policy
+metadata:
+  name: bootstrap-job-image
+  namespace: rhacs-operator
+  annotations:
+    # policy.open-cluster-management.io/standards: NIST SP 800-53
+    policy.open-cluster-management.io/categories: CM Configuration Management
+    policy.open-cluster-management.io/controls: CM-2 Baseline Configuration
+spec:
+  remediationAction: enforce
+  disabled: false
+  policy-templates:
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: bootstrap-job-image-config-map
+      spec:
+        remediationAction: enforce
+        severity: high
+        object-templates:
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: v1
+              kind: ConfigMap
+              metadata:
+                name: rhacs-bootstrap-script
+                namespace: rhacs-operator
+              data:
+                rhacs-bootstrap.sh: |
+                  #!/bin/sh
+
+                  # retrieve API token for roxctl
+                  export ROX_API_TOKEN=$(curl -sk -u "admin:$(oc get secret central-htpasswd -n rhacs-operator -o jsonpath='{.data.password}' | base64 -d)" "https://$(oc get routes --no-headers | grep central-rhacs-operator | awk '{print $2}')/v1/apitokens/generate" -d '{"name":"rhacm-hub-admin-token", "role": "Admin"}' | jq -r '.token')
+
+                  RHACS_CENTRAL_ROUTE="$(oc get routes -n rhacs-operator --no-headers | grep central-rhacs-operator | awk '{print $2}' | sed -e 's/$/:443/')""
+
+                  # generate the init-bundle
+                  roxctl -e $RHACS_CENTRAL_ROUTE --insecure-skip-tls-verify=true central init-bundles generate init-bundle-rhacm-hub --output-secrets /tmp/cluster_init_bundle.yaml
+
+                  # apply the init-bundle (create the collector-tls, sensor-tls and admission-controller-tls secrets)
+                  oc create -n rhacs-operator -f /tmp/cluster_init_bundle.yaml --token=$(cat /var/run/secrets/kubernetes.io/serviceaccount/token)
+
+                  # create a ConfigMap containing the metadata of the init-bundle, because they are needed when the sensor of the SecuredCluster is created
+                  CREATED_AT="$(oc get secret sensor-tls -n rhacs-operator -o jsonpath='{.metadata.annotations.init-bundle\.stackrox\.io/created-at}')"
+                  EXPIRES_AT="$(oc get secret sensor-tls -n rhacs-operator -o jsonpath='{.metadata.annotations.init-bundle\.stackrox\.io/expires-at}')"
+                  ID="$(oc get secret sensor-tls -n rhacs-operator -o jsonpath='{.metadata.annotations.init-bundle\.stackrox\.io/id}')"
+                  NAME="$(oc get secret sensor-tls -n rhacs-operator -o jsonpath='{.metadata.annotations.init-bundle\.stackrox\.io/name}')"
+
+                  oc create cm init-bundle-metadata --from-literal=createdat=${CREATED_AT} --from-literal=expiresat=${EXPIRES_AT} --from-literal=id=${ID} --from-literal=name=${NAME}
+  - objectDefinition:
+      apiVersion: policy.open-cluster-management.io/v1
+      kind: ConfigurationPolicy
+      metadata:
+        name: bootstrap-job-image-build
+      spec:
+        remediationAction: enforce
+        severity: high
+        object-templates:
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: image.openshift.io/v1
+              kind: ImageStream
+              metadata:
+                name: rhacs-bootstrapper-job-image
+                namespace: rhacs-operator
+              spec:
+                lookupPolicy:
+                  local: false
+          - complianceType: musthave
+            objectDefinition:
+              apiVersion: build.openshift.io/v1
+              kind: Build
+              metadata:
+                name: rhacs-bootstrapper-job-image
+                namespace: rhacs-operator
+              spec:
+                source:
+                  type: Dockerfile
+                  dockerfile: |
+                    FROM registry.access.redhat.com/ubi8/ubi-minimal:8.8
+
+                    RUN microdnf install -y gzip jq tar
+
+                    # download and install oc CLI
+                    RUN curl -s https://mirror.openshift.com/pub/openshift-v4/clients/ocp/stable/openshift-client-linux.tar.gz -o /tmp/openshift-client-linux.tar.gz && \
+                        tar xvf /tmp/openshift-client-linux.tar.gz -C /usr/local/bin && \
+                        chmod +x /usr/local/bin/oc && \
+                        rm /tmp/openshift-client-linux.tar.gz
+
+                    # download and install roxctl CLI
+                    RUN curl -s https://mirror.openshift.com/pub/rhacs/assets/latest/bin/linux/roxctl -o /usr/local/bin/roxctl && \
+                        chmod +x /usr/local/bin/roxctl
+
+                    RUN cp /bootstrap/rhacs-bootstrap.sh / && \
+                        chmod +x /rhacs-bootstrap.sh
+
+                    CMD ["/rhacs-bootstrap.sh"]
+                strategy:
+                  type: Docker
+                  dockerStrategy:
+                    volumes:
+                    - name: rhacs-bootstrap-script
+                      mounts:
+                      - destinationPath: /bootstrap
+                      source:
+                        type: ConfigMap 
+                        configMap:
+                          name: rhacs-bootstrap-script
+                output:
+                  to:
+                    kind: ImageStreamTag
+                    name: 'rhacs-bootstrapper-job-image:latest'
