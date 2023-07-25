@@ -22,34 +22,34 @@ Using a user with *cluster-admin* role connected to the cluster.
 ### Install RHACS
 
 ```shell
-oc apply -f rhacm-rhacs/templates/central-policy.yml
-oc apply -f rhacm-rhacs/templates/central-policy-bindings.yml
+oc apply -f rhacs-via-rhacm/policies/central-policy.yml
+oc apply -f rhacs-via-rhacm/policies/central-policy-bindings.yml
 ```
 
 ### Configure the RHACS service account
 
 ```shell
-oc apply -f rhacm-rhacs/templates/bootstrap/bootstrap-policy-sa.yml
-oc apply -f rhacm-rhacs/templates/bootstrap/bootstrap-sa-placement.yml
+oc apply -f rhacs-via-rhacm/policies/bootstrap/bootstrap-policy-sa.yml
+oc apply -f rhacs-via-rhacm/policies/bootstrap/bootstrap-sa-placement.yml
 ```
 
 ### Create a bootstrap job to create the RHACS init bundle
 
 ```shell
-oc apply -f rhacm-rhacs/templates/bootstrap-job/bootstrapper-policy.yml
-oc apply -f rhacm-rhacs/templates/bootstrap-job/boostrapper-job-placement.yml
+oc apply -f rhacs-via-rhacm/policies/bootstrap-job/bootstrapper-policy.yml
+oc apply -f rhacs-via-rhacm/policies/bootstrap-job/boostrapper-job-placement.yml
 ```
 
 ### Propagate certificates created in managed clusters
 
 ```shell
-oc apply -f rhacm-rhacs/templates/secured-cluster/sc-policy.yml
-oc apply -f rhacm-rhacs/templates/secured-cluster/sc-policy-binding.yml
+oc apply -f rhacs-via-rhacm/policies/secured-cluster/sc-policy.yml
+oc apply -f rhacs-via-rhacm/policies/secured-cluster/sc-policy-binding.yml
 ```
 
 ### Create a SecuredCluster in RHACS
 
 ```shell
-oc apply -f rhacm-rhacs/templates/secured-cluster-cr/sc.yml
-oc apply -f rhacm-rhacs/templates/secured-cluster-cr/sc-binding.yml
+oc apply -f rhacs-via-rhacm/policies/secured-cluster-cr/sc.yml
+oc apply -f rhacs-via-rhacm/policies/secured-cluster-cr/sc-binding.yml
 ```
