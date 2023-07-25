@@ -1,27 +1,13 @@
----
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
-  name: binding-policy-advanced-cluster-security-central
   namespace: open-cluster-management
+  name: central-in-cluster
 placementRef:
-  name: placement-policy-advanced-cluster-security-central
+  name: in-cluster
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
-- name: policy-central
+- name: rhacs-central
   kind: Policy
   apiGroup: policy.open-cluster-management.io
----
-apiVersion: apps.open-cluster-management.io/v1
-kind: PlacementRule
-metadata:
-  namespace: open-cluster-management
-  name: placement-policy-advanced-cluster-security-central
-spec:
-  clusterConditions:
-  - status: "True"
-    type: ManagedClusterConditionAvailable
-  clusterSelector:
-    matchExpressions:
-      - {key: local-cluster, operator: In, values: ["true"]}

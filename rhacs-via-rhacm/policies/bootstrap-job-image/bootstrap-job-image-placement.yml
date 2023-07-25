@@ -1,27 +1,13 @@
----
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
   name: bootstrap-job-image
   namespace: rhacs-operator
 placementRef:
-  name: bootstrap-job-image
+  name: in-cluster
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
 - name: bootstrap-job-image
   kind: Policy
   apiGroup: policy.open-cluster-management.io
----
-apiVersion: apps.open-cluster-management.io/v1
-kind: PlacementRule
-metadata:
-  namespace: rhacs-operator
-  name: bootstrap-job-image
-spec:
-  clusterConditions:
-  - status: "True"
-    type: ManagedClusterConditionAvailable
-  clusterSelector:
-    matchExpressions:
-      - {key: local-cluster, operator: In, values: ["true"]}

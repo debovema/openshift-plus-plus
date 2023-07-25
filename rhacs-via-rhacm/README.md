@@ -19,11 +19,19 @@ It is applied to a set of target clusters using a *PlacementRule* and a *Placeme
 
 Using a user with *cluster-admin* role connected to the cluster.
 
+### Create the two *PlacementRules*
+
+```shell
+oc create namespace rhacs-operator # because placement rule are bound to a namespace, we need to create "rhacs-operator" before RHACS setup
+oc apply -f rhacs-via-rhacm/placement-rules/in-cluster.yaml
+oc apply -f rhacs-via-rhacm/placement-rules/not-in-cluster.yaml
+```
+
 ### Install RHACS
 
 ```shell
-oc apply -f rhacs-via-rhacm/policies/central-policy.yml
-oc apply -f rhacs-via-rhacm/policies/central-policy-bindings.yml
+oc apply -f rhacs-via-rhacm/policies/central/central-policy.yml
+oc apply -f rhacs-via-rhacm/policies/central/central-policy-bindings.yml
 ```
 
 ### Configure the RHACS service account
@@ -31,6 +39,13 @@ oc apply -f rhacs-via-rhacm/policies/central-policy-bindings.yml
 ```shell
 oc apply -f rhacs-via-rhacm/policies/bootstrap/bootstrap-policy-sa.yml
 oc apply -f rhacs-via-rhacm/policies/bootstrap/bootstrap-sa-placement.yml
+```
+
+### Create a *Build* to create the image with the RHACS bootstrap script
+
+```shell
+oc apply -f rhacs-via-rhacm/policies/bootstrap-job-image/bootstrap-job-image-policy.yml
+oc apply -f rhacs-via-rhacm/policies/bootstrap-job-image/bootstrap-job-image-placement.yml
 ```
 
 ### Create a bootstrap job to create the RHACS init bundle

@@ -1,27 +1,13 @@
----
 apiVersion: policy.open-cluster-management.io/v1
 kind: PlacementBinding
 metadata:
   name: binding-boostrapperjob
   namespace: rhacs-operator
 placementRef:
-  name: placement-boostrapperjob
+  name: in-cluster
   kind: PlacementRule
   apiGroup: apps.open-cluster-management.io
 subjects:
 - name: policy-stackrox-bootstrapper
   kind: Policy
   apiGroup: policy.open-cluster-management.io
----
-apiVersion: apps.open-cluster-management.io/v1
-kind: PlacementRule
-metadata:
-  namespace: rhacs-operator
-  name: placement-boostrapperjob
-spec:
-  clusterConditions:
-  - status: "True"
-    type: ManagedClusterConditionAvailable
-  clusterSelector:
-    matchExpressions:
-      - {key: local-cluster, operator: In, values: ["true"]}
