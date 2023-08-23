@@ -1,0 +1,13 @@
+apiVersion: policy.open-cluster-management.io/v1
+kind: PlacementBinding
+metadata:
+  name: rhacs-bootstrap-serviceaccount-in-local-cluster
+  namespace: rhacs-operator
+placementRef:
+  name: local-cluster
+  kind: PlacementRule
+  apiGroup: apps.open-cluster-management.io
+subjects:
+- name: rhacs-bootstrap-serviceaccount
+  kind: Policy
+  apiGroup: policy.open-cluster-management.io

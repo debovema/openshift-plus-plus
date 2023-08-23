@@ -1,7 +1,7 @@
 apiVersion: policy.open-cluster-management.io/v1
 kind: Policy
 metadata:
-  name: bootstrap-job-image
+  name: rhacs-bootstrap-job-image
   namespace: rhacs-operator
   annotations:
     # policy.open-cluster-management.io/standards: NIST SP 800-53
@@ -34,7 +34,7 @@ spec:
                   # retrieve API token for roxctl
                   export ROX_API_TOKEN=$(curl -sk -u "admin:$(oc get secret central-htpasswd -n rhacs-operator -o jsonpath='{.data.password}' | base64 -d)" "https://$(oc get routes --no-headers | grep central-rhacs-operator | awk '{print $2}')/v1/apitokens/generate" -d '{"name":"rhacm-hub-admin-token", "role": "Admin"}' | jq -r '.token')
 
-                  RHACS_CENTRAL_ROUTE="$(oc get routes -n rhacs-operator --no-headers | grep central-rhacs-operator | awk '{print $2}' | sed -e 's/$/:443/')""
+                  RHACS_CENTRAL_ROUTE="$(oc get routes -n rhacs-operator --no-headers | grep central-rhacs-operator | awk '{print $2}' | sed -e 's/$/:443/')"
 
                   # generate the init-bundle
                   roxctl -e $RHACS_CENTRAL_ROUTE --insecure-skip-tls-verify=true central init-bundles generate init-bundle-rhacm-hub --output-secrets /tmp/cluster_init_bundle.yaml
