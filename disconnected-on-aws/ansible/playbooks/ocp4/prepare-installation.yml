@@ -1,0 +1,105 @@
+---
+- name: Prepare service VM for OCP
+  hosts: bastion
+  gather_facts: false
+  vars:
+    ocp4_org_name: ocp4
+    local_registry: "{{ public_dns_name }}:8443"
+    quay_init_username: admin
+    quay_init_password: quayadmin123
+    quay_init_email: quayadmin@redhat.io
+  pre_tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Check whether OPENSHIFT_BASE_DOMAIN environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_BASE_DOMAIN environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_BASE_DOMAIN"))
+    - name: Set DNS base domain
+      ansible.builtin.set_fact:
+        base_domain: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_BASE_DOMAIN') }}"
+    - name: Define OCP4 hosts IPs
+      ansible.builtin.set_fact:
+        ocp4_hosts_ips: "{{ lookup('template', './ocp4_hosts_ips.j2') }}"
+        ocp4_bootstrap_ip: "{{ lookup('template', './ocp4_bootstrap_ip.j2') }}"
+        ocp4_masters_ips: "{{ lookup('template', './ocp4_masters_ips.j2') }}"
+        ocp4_workers_ips: "{{ lookup('template', './ocp4_workers_ips.j2') }}"
+    - name: Define OCP4 transverse services hosts IPs
+      ansible.builtin.set_fact:
+        ocp4_dns_server_ip: "{{ installation_services_vm_ip }}"
+        ocp4_lb_server_ip: "{{ installation_services_vm_ip }}"
+    - name: Load Quay root CA
+      ansible.builtin.set_fact:
+        additional_trust_bundle: "{{ lookup('ansible.builtin.file', '../../ocp4/quay_ca.pem') }}"
+    - name: Ensure directory for ignitions user data exists
+      ansible.builtin.file:
+        path: "../../ocp4/user-data"
+        state: directory
+        mode: '0755'
+      delegate_to: localhost
+    - name: Write the bootstrap ignition user data
+      ansible.builtin.copy:
+        dest: "../../ocp4/user-data/bootstrap"
+        content: |
+          {
+            "ignition": {
+              "config": {
+                "replace": {
+                  "source":"http://{{ installation_services_vm_ip }}:8080/openshift4/ignitions/bootstrap.ign"
+                }
+              },
+              "version":"3.1.0"
+            }
+          }
+        mode: '0644'
+      delegate_to: localhost
+    - name: Write the master ignition user data
+      ansible.builtin.copy:
+        dest: "../../ocp4/user-data/master"
+        content: |
+          {
+            "ignition": {
+              "config": {
+                "replace": {
+                  "source":"http://{{ installation_services_vm_ip }}:8080/openshift4/ignitions/master.ign"
+                }
+              },
+              "version":"3.1.0"
+            }
+          }
+        mode: '0644'
+      delegate_to: localhost
+    - name: Write the bootstrap ignition user data
+      ansible.builtin.copy:
+        dest: "../../ocp4/user-data/worker"
+        content: |
+          {
+            "ignition": {
+              "config": {
+                "replace": {
+                  "source":"http://{{ installation_services_vm_ip }}:8080/openshift4/ignitions/worker.ign"
+                }
+              },
+              "version":"3.1.0"
+            }
+          }
+        mode: '0644'
+      delegate_to: localhost
+    - name: Create pull-secret credentials for Quay
+      ansible.builtin.set_fact:
+        quay_pull_secret: '{{ {} | combine ({"auths": { (local_registry): { "auth": ((quay_init_username + ":" + quay_init_password) | b64encode), "email": (quay_init_email) } } }) }}'
+    - debug:
+        var: quay_pull_secret
+    - ansible.builtin.set_fact:
+        ocp4_pull_secret: "{{ quay_pull_secret }}"
+    - name: Generate OCP4 servers config (DNS, HAProxy)
+      ansible.builtin.include_role:
+        name: ocp4-servers
+        tasks_from: config
+  roles:
+    - ocp4-installation-files

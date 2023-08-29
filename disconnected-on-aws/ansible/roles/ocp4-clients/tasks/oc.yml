@@ -1,0 +1,11 @@
+- name: Download oc
+  ansible.builtin.get_url:
+    url: "{{ ocp4_oc_url }}"
+    dest: "/home/{{ vm_user }}"
+    mode: '0640'
+- name: Extract oc
+  become: true
+  ansible.builtin.unarchive:
+    src: "/home/{{ vm_user }}/{{ ocp4_oc_archive }}"
+    dest: /usr/local/bin
+    remote_src: true

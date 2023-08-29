@@ -1,0 +1,4 @@
+- name: oc
+  include_tasks: oc.yml
+- name: openshift-install
+  include_tasks: openshift-install.yml

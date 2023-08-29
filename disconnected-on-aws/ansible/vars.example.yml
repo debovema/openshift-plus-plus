@@ -1,0 +1,53 @@
+## SSH
+# SSH key to use (default: ~/.ssh/aws)
+ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/aws' }}"
+ssh_public_key_file: "{{ lookup('env', 'HOME') + '/.ssh/aws.pub' }}"
+ssh_public_key: "{{ lookup('file', ssh_public_key_file) }}"
+# name of the EC2 key pair to create
+ssh_key_pair_name: my-ssh-key
+
+## AWS
+aws_default_region: eu-west-1
+rhcos_ami_id: ami-050884af9c525baea # TODO: replace with RHCOS AMI
+rhel_ami_id: ami-07d4917b6f95f5c2a # TODO: replace with RHEL 9 AMI
+vm_user: "ec2-user"
+
+## OCP4
+ocp4_version: 4.12.30
+ocp4_hosts: # the VMs in the cluster
+- name: bootstrap
+  type: bootstrap
+  ip: 10.0.32.99
+  hardware:
+    memory_mb: 16384
+    num_cpus: 4
+- name: master0
+  type: master
+  ip: 10.0.32.1
+  hardware:
+    memory_mb: 16384
+    num_cpus: 4
+- name: master1
+  type: master
+  ip: 10.0.32.2
+  hardware:
+    memory_mb: 16384
+    num_cpus: 4
+- name: master2
+  type: master
+  ip: 10.0.32.3
+  hardware:
+    memory_mb: 16384
+    num_cpus: 4
+# - name: worker0
+#   type: worker
+#   ip: 10.0.32.4
+#   hardware:
+#     memory_mb: 16384
+#     num_cpus: 4
+# - name: worker1
+#   type: worker
+#   ip: 10.0.32.5
+#   hardware:
+#     memory_mb: 16384
+#     num_cpus: 4

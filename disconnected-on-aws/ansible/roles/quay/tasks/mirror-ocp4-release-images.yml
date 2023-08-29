@@ -1,0 +1,37 @@
+- name: Add Quay credentials in pull-secret
+  ansible.builtin.set_fact:
+    ocp4_pull_secret:
+      auths: |
+        {{ ocp4_pull_secret |
+            json_query('auths') |
+            combine(
+              {
+                (local_registry): {
+                  "auth": ((quay_init_username + ':' + quay_init_password) | b64encode),
+                  "email": (quay_init_email)
+                }
+              }
+            )
+        }}
+- name: Copy pull-secret
+  ansible.builtin.copy:
+    content: "{{ ocp4_pull_secret }}"
+    dest: "~/pull-secret"
+    mode: "0600"
+- name: Mirror OpenShift release images to Quay
+  ansible.builtin.debug:
+    msg: >
+      oc adm release mirror -a ~/pull-secret
+      --insecure=true
+      --from=quay.io/{{ product_repo }}/{{ release_name }}:{{ ocp4_version }}-{{ architecture }}
+      --to={{ local_registry }}/{{ local_repository }}
+      --to-release-image={{ local_registry }}/{{ local_repository }}:{{ ocp4_version }}-{{ architecture }}
+      2>&1 | tee /home/ec2-user/oc.log
+- name: Mirror OpenShift release images to Quay
+  ansible.builtin.shell: >
+    oc adm release mirror -a ~/pull-secret
+    --insecure=true
+    --from=quay.io/{{ product_repo }}/{{ release_name }}:{{ ocp4_version }}-{{ architecture }}
+    --to={{ local_registry }}/{{ local_repository }}
+    --to-release-image={{ local_registry }}/{{ local_repository }}:{{ ocp4_version }}-{{ architecture }}
+    2>&1 | tee /home/ec2-user/oc.log

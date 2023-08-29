@@ -1,0 +1,36 @@
+- name: Create installation files directory
+  ansible.builtin.file:
+    path: "~/ocp4"
+    state: directory
+    mode: '0755'
+- name: Create install-config.yaml for OpenShift installer
+  ansible.builtin.copy:
+    dest: "~/ocp4/install-config.yaml"
+    content: "{{ lookup('template', 'install-config.yaml.j2') }}"
+- name: Create manifests
+  ansible.builtin.shell:
+    cmd: "openshift-install create manifests --dir=."
+    chdir: "~/ocp4"
+- name: Create ignition files
+  ansible.builtin.shell:
+    cmd: "openshift-install create ignition-configs --dir=."
+    chdir: "~/ocp4"
+- name: List ignition files
+  ansible.builtin.find:
+    paths: "~/ocp4"
+    recurse: false
+    patterns: "*.ign"
+  register: ignition_files
+- name: Create ignitions directory
+  become: true
+  ansible.builtin.file:
+    path: "/var/www/html/openshift4/ignitions"
+    state: directory
+    mode: '0755'
+- name: Copy ignition files to web server directory
+  become: true
+  ansible.builtin.copy:
+    src: "{{ item.path }}"
+    dest: "/var/www/html/openshift4/ignitions"
+    remote_src: yes
+  loop: "{{ ignition_files.files }}"

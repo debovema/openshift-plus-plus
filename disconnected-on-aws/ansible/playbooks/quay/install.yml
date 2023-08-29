@@ -1,0 +1,23 @@
+- name: Install Quay
+  hosts: bastion
+  gather_facts: false
+  pre_tasks:
+    - name: Check whether OPENSHIFT_PULL_SECRET environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_PULL_SECRET environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_PULL_SECRET"))
+    - name: Set OpenShift pull secret
+      ansible.builtin.set_fact:
+        registries_auth: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_PULL_SECRET') }}"
+    - name: Set Quay directories
+      ansible.builtin.set_fact:
+        quay_directory: ~/quay
+        quay_root: ~/quay/install
+  roles:
+    - quay
+  tasks:
+    - name: Download Quay root CA
+      ansible.builtin.fetch:
+        src: "{{ quay_root }}/quay-rootCA/rootCA.pem"
+        dest: ../../ocp4/quay_ca.pem
+        flat: true

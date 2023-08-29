@@ -1,0 +1,16 @@
+- name: Mirror OpenShift installation images in a Quay registry
+  hosts: bastion
+  gather_facts: false
+  pre_tasks:
+    - name: Check whether OPENSHIFT_PULL_SECRET environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_PULL_SECRET environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_PULL_SECRET"))
+    - name: Set OpenShift pull secret
+      ansible.builtin.set_fact:
+        ocp4_pull_secret: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_PULL_SECRET') }}"
+  tasks:
+    - name: Mirror OpenShift release images
+      ansible.builtin.include_role:
+        name: quay
+        tasks_from: mirror-ocp4-release-images

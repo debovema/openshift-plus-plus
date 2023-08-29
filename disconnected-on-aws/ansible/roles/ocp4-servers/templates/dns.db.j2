@@ -1,0 +1,25 @@
+$TTL 1D
+@   IN SOA  dns.{{ base_domain }}   root.dns.{{ base_domain }}. (
+                                       2017031330      ; serial
+                                       1D              ; refresh
+                                       1H              ; retry
+                                       1W              ; expire
+                                       3H )            ; minimum
+$ORIGIN         {{ base_domain }}.
+{{ base_domain }}.            IN      NS      dns.{{ base_domain }}.
+dns                     IN      A       {{ installation_services_vm_ip }}
+*.apps.{{ cluster_name }}     IN    A    {{ installation_services_vm_ip }}
+bastion.{{ cluster_name }}     IN    A    {{ installation_services_vm_ip }}
+api.{{ cluster_name }}     IN    A    {{ installation_services_vm_ip }}
+api-int.{{ cluster_name }}     IN    A    {{ installation_services_vm_ip }}
+provision.{{ cluster_name }}    IN    A    {{ installation_services_vm_ip }}
+
+{% set master_count = namespace(value=0) %}
+{% for host in ocp4_hosts -%}
+{{ host.name }}.{{ cluster_name }} IN A {{ ocp4_hosts_ips[loop.index0] }}
+{% if host.type == "master" %}
+etcd-{{ master_count.value }}.{{ cluster_name }} IN A {{ ocp4_hosts_ips[loop.index0] }}
+_etcd-server-ssl._tcp.{{ cluster_name }}  IN SRV 0 10 2380 etcd-{{ master_count.value }}.{{ cluster_name }}
+{% set master_count.value = master_count.value + 1 %}
+{% endif %}
+{% endfor %}

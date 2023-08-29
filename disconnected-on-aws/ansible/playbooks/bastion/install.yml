@@ -1,0 +1,6 @@
+---
+- name: Prepare service VM for OCP
+  hosts: bastion
+  roles:
+    - ocp4-clients
+    - ocp4-servers

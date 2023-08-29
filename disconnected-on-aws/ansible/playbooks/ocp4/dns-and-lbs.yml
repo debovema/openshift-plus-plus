@@ -1,0 +1,133 @@
+- name: Create an EC2 instance with RHCOS and ignition in user data
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Check whether OPENSHIFT_BASE_DOMAIN environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_BASE_DOMAIN environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_BASE_DOMAIN"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Set OpenShift base domain
+      ansible.builtin.set_fact:
+        openshift_base_domain: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_BASE_DOMAIN') }}"
+    - name: Define OCP4 hosts IPs
+      ansible.builtin.set_fact:
+        ocp4_hosts_ips: "{{ lookup('template', './ocp4_hosts_ips.j2') }}"
+        ocp4_bootstrap_ip: "{{ lookup('template', './ocp4_bootstrap_ip.j2') }}"
+        ocp4_masters_ips: "{{ lookup('template', './ocp4_masters_ips.j2') }}"
+        ocp4_workers_ips: "{{ lookup('template', './ocp4_workers_ips.j2') }}"
+    - name: Define control plane target groups
+      ansible.builtin.set_fact:
+        ocp4_target_group_api: "{{ ocp4_target_group_api | default([]) + [{'Id': item, 'Port': 6443}] }}"
+        ocp4_target_group_machine_config: "{{ ocp4_target_group_machine_config | default([]) + [{'Id': item, 'Port': 22623}] }}"
+      with_items:
+        - "{{ ocp4_bootstrap_ip }}"
+        - "{{ ocp4_masters_ips }}"
+    - name: Create a target group for API
+      community.aws.elb_target_group:
+        name: api-target-group
+        protocol: TCP
+        port: 6443
+        vpc_id: "{{ vpc_id }}"
+        target_type: ip
+        targets: "{{ ocp4_target_group_api }}"
+        state: present
+        wait_timeout: 200
+        wait: false
+    - name: Create a target group for Machine Config
+      community.aws.elb_target_group:
+        name: machine-config-target-group
+        protocol: TCP
+        port: 22623
+        vpc_id: "{{ vpc_id }}"
+        target_type: ip
+        targets: "{{ ocp4_target_group_machine_config }}"
+        state: present
+        wait_timeout: 200
+        wait: false
+    - name: Create a Network Load Balancer for the API and Machine Config
+      community.aws.elb_network_lb:
+        name: api-lb
+        subnets: "{{ vpc_private_subnet_ids }}"
+        listeners:
+          - Protocol: TCP
+            Port: 6443
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: api-target-group
+          - Protocol: TCP
+            Port: 22623
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: machine-config-target-group
+        state: present
+      register: api_lb
+    - name: Add API Load Balancer as an alias A record for api.{{ cluster_name + "." + openshift_base_domain }}
+      amazon.aws.route53:
+        state: present
+        zone: "{{ openshift_base_domain }}"
+        record: "api.{{ cluster_name }}.{{ openshift_base_domain }}"
+        type: A
+        alias: true
+        value: "{{ api_lb.dns_name }}."
+        alias_hosted_zone_id: "{{ api_lb.canonical_hosted_zone_id }}"
+        overwrite: true
+        wait: true
+    - name: Add API Internal Load Balancer as an alias A record for api-int.{{ cluster_name + "." + openshift_base_domain }}
+      amazon.aws.route53:
+        state: present
+        zone: "{{ openshift_base_domain }}"
+        record: "api-int.{{ cluster_name }}.{{ openshift_base_domain }}"
+        type: A
+        alias: true
+        value: "{{ api_lb.dns_name }}."
+        alias_hosted_zone_id: "{{ api_lb.canonical_hosted_zone_id }}"
+        overwrite: true
+        wait: true
+
+    - name: Define data plane target groups
+      ansible.builtin.set_fact:
+        ocp4_target_group_apps: "{{ ocp4_target_group_apps | default([]) + [{'Id': item, 'Port': 443}] }}"
+      with_items:
+        - "{{ ocp4_workers_ips }}"
+    - name: Create a target group for apps
+      community.aws.elb_target_group:
+        name: apps-target-group
+        protocol: TCP
+        port: 443
+        vpc_id: "{{ vpc_id }}"
+        target_type: ip
+        targets: "{{ ocp4_target_group_apps }}"
+        state: present
+        wait_timeout: 200
+        wait: false
+    - name: Create a Network Load Balancer for the apps
+      community.aws.elb_network_lb:
+        name: apps-lb
+        subnets: "{{ vpc_private_subnet_ids }}"
+        listeners:
+          - Protocol: TCP
+            Port: 443
+            DefaultActions:
+              - Type: forward
+                TargetGroupName: apps-target-group
+        state: present
+      register: apps_lb
+    - name: Add apps Load Balancer as an alias A record for *.apps.{{ cluster_name + "." + openshift_base_domain }}
+      amazon.aws.route53:
+        state: present
+        zone: "{{ openshift_base_domain }}"
+        record: "*.apps.{{ cluster_name }}.{{ openshift_base_domain }}"
+        type: A
+        alias: true
+        value: "{{ apps_lb.dns_name }}."
+        alias_hosted_zone_id: "{{ apps_lb.canonical_hosted_zone_id }}"
+        overwrite: true
+        wait: true

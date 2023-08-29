@@ -1,0 +1,99 @@
+- name: Create VPC for OCP4 cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    azs:
+      - "a"
+      - "b"
+    nat_gateway_in_each_az: false
+    vpc_cidr_block: "10.0.0.0/16"
+  tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Set AWS region
+      ansible.builtin.set_fact:
+        aws_region: "{{ lookup('ansible.builtin.env', 'AWS_DEFAULT_REGION') }}"
+    - name: Create VPC
+      amazon.aws.ec2_vpc_net:
+        name: "{{ cluster_name }}"
+        cidr_block: "{{ vpc_cidr_block }}"
+      register: vpc
+    - name: Create Internet gateway
+      amazon.aws.ec2_vpc_igw:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-igw"
+      register: igw
+    - name: Create public subnets for AZs
+      amazon.aws.ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-subnet-public{{ az_index + 1 }}-{{ aws_region }}{{ item }}"
+        az: "{{ aws_region }}{{ item }}"
+        cidr: "{{ vpc_cidr_block | ansible.utils.ipsubnet(20, az_index) }}"
+      loop: "{{ azs }}"
+      loop_control:
+        index_var: az_index
+      register: public_subnets
+    - name: Create private subnets for AZs
+      amazon.aws.ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-subnet-private{{ az_index + 1 }}-{{ aws_region }}{{ item }}"
+        az: "{{ aws_region }}{{ item }}"
+        cidr: "{{ vpc_cidr_block | ansible.utils.ipsubnet(20, (public_subnets.results | length) + az_index) }}"
+      loop: "{{ azs }}"
+      loop_control:
+        index_var: az_index
+      register: private_subnets
+    - name: List public subnets IDs
+      ansible.builtin.set_fact:
+        public_subnet_ids: "{{ public_subnets.results | map(attribute='subnet') | map(attribute='id') }}"
+    - name: List public subnets CIDRs
+      ansible.builtin.set_fact:
+        public_subnet_cidrs: "{{ public_subnets.results | map(attribute='subnet') | map(attribute='cidr_block') }}"
+    - name: List private subnets IDs
+      ansible.builtin.set_fact:
+        private_subnet_ids: "{{ private_subnets.results | map(attribute='subnet') | map(attribute='id') }}"
+    - name: List private subnets CIDRs
+      ansible.builtin.set_fact:
+        private_subnet_cidrs: "{{ private_subnets.results | map(attribute='subnet') | map(attribute='cidr_block') }}"
+    - name: Create custom route table for public subnets
+      amazon.aws.ec2_vpc_route_table:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-rtb-public"
+        subnets: "{{ public_subnet_ids }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+    - name: List all subnets in VPC
+      ansible.builtin.set_fact:
+        vpc_subnets: "{{ public_subnet_ids | union(private_subnet_ids) | join('\\n    - ') }}"
+    - name: Ensure a directory exists for the cluster {{ cluster_name }}
+      ansible.builtin.file:
+        dest: "{{ playbook_dir }}/../ocp4"
+        state: directory
+        mode: '0755'
+    - name: Export the VPC id and subnets
+      ansible.builtin.copy:
+        content: |
+          all:
+            vars:
+              vpc_id: {{ vpc.vpc.id }}
+              vpc_public_subnet_ids: {{ public_subnet_ids }}
+              vpc_public_subnets_cidrs: {{ public_subnet_cidrs }}
+              vpc_private_subnet_ids: {{ private_subnet_ids }}
+              vpc_private_subnets_cidrs: {{ private_subnet_cidrs }}
+        dest: "{{ playbook_dir }}/../ocp4/vpc.yml"
+        mode: '0755'

@@ -1,0 +1,16 @@
+$TTL 1D
+@   IN SOA  dns.{{ cluster_name }}.{{ base_domain }}.  root.dns.{{ cluster_name }}.{{ base_domain }}. (
+                                        2020012511      ; serial
+                                        1D              ; refresh
+                                        1H              ; retry
+                                        1W              ; expire
+                                        3H )            ; minimum
+@       IN      NS      dns.{{ cluster_name }}.{{ base_domain }}.
+ocp.    IN      NS      dns.{{ cluster_name }}.{{ base_domain }}.
+2      IN    PTR    dns.{{ cluster_name }}.{{ base_domain }}.
+10     IN    PTR    ns1.{{ cluster_name }}.{{ base_domain }}.
+111     IN    PTR    api.{{ cluster_name }}.{{ base_domain }}.
+
+{% for host in ocp4_hosts -%}
+{{ (ocp4_hosts_ips[loop.index0] | split('.')).3 }} IN PTR {{ host.name }}.{{ cluster_name }}.{{ base_domain }}.
+{% endfor %}

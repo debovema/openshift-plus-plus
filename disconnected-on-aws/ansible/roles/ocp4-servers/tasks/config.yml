@@ -1,0 +1,34 @@
+- name: Set PTR record for subnet
+  ansible.builtin.set_fact:
+    ocp4_subnet_reverse_dns_record: "{{ (ocp4_dns_server_ip | ansible.utils.ipaddr('revdns') | regex_replace('^[0-9]+\\.', ''))[:-1] }}"
+- name: Create DNS config
+  become: true
+  ansible.builtin.copy:
+    group: named
+    dest: /etc/named.conf
+    content: "{{ lookup('template', 'named.conf.j2') }}"
+- name: Create DNS DB file
+  become: true
+  ansible.builtin.copy:
+    group: named
+    dest: "/var/named/{{ base_domain }}.zone"
+    content: "{{ lookup('template', 'dns.db.j2') }}"
+- name: Create reverse DNS DB file
+  become: true
+  ansible.builtin.copy:
+    group: named
+    dest: "/var/named/{{ ocp4_subnet_reverse_dns_record }}"
+    content: "{{ lookup('template', 'dns.reverse.db.j2') }}"
+- name: Configure resolv.conf
+  become: true
+  ansible.builtin.copy:
+    content: |
+      search {{ cluster_name }}.{{ base_domain }}
+      nameserver {{ installation_services_vm_ip }}
+    dest: /etc/resolv.conf
+- name: Create HAProxy config
+  become: true
+  ansible.builtin.copy:
+    group: named
+    dest: "/etc/haproxy/haproxy.cfg"
+    content: "{{ lookup('template', 'haproxy.cfg.j2') }}"

@@ -1,0 +1,11 @@
+- name: Download openshift-install
+  ansible.builtin.get_url:
+    url: "{{ ocp4_openshift_install_url }}"
+    dest: "/home/{{ vm_user }}"
+    mode: '0640'
+- name: Extract openshift-install
+  become: true
+  ansible.builtin.unarchive:
+    src: "/home/{{ vm_user }}/{{ ocp4_openshift_install_archive }}"
+    dest: /usr/local/bin
+    remote_src: true

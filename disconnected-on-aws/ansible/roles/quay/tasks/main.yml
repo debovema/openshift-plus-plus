@@ -1,0 +1,50 @@
+- name: Ensure that required packages are installed
+  become: true
+  ansible.builtin.package:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - firewalld
+    - podman
+- name: Download OpenShift CLI tools
+  ansible.builtin.include_role:
+    name: ocp4-clients
+    tasks_from: "{{ item }}"
+  loop:
+  - oc
+  - oc-mirror
+  - mirror-registry
+- name: Create directories for mirroring
+  ansible.builtin.file:
+    dest: "{{ item }}"
+    state: directory
+    mode: '0755'
+  loop:
+  - "~/.docker"
+  - "{{ quay_directory }}"
+- name: Copy registries authentication file
+  ansible.builtin.copy:
+    content: "{{ registries_auth }}"
+    dest: "~/.docker/config.json"
+    mode: "0600"
+- name: Enable and restart firewalld service
+  become: true
+  ansible.builtin.service:
+    name: firewalld
+    enabled: yes
+    state: restarted
+- name: Add firewall rules for Quay
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    immediate: yes
+    state: enabled
+  loop:
+  - 8443/tcp
+- debug:
+    msg: "mirror-registry install --quayHostname {{ public_dns_name }} --quayRoot {{ quay_root }} --initUser {{ quay_init_username }} --initPassword {{ quay_init_password }}"
+- name: Install Quay with mirror-registry
+  ansible.builtin.shell:
+    cmd: "mirror-registry install --quayHostname {{ public_dns_name }} --quayRoot {{ quay_root }} --initUser {{ quay_init_username }} --initPassword {{ quay_init_password }}"
+    chdir: "{{ quay_directory }}"

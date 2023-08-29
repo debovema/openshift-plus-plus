@@ -1,0 +1,12 @@
+- name: Download oc-mirror
+  ansible.builtin.get_url:
+    url: "{{ ocp4_oc_mirror_url }}"
+    dest: "/home/{{ vm_user }}"
+    mode: '0640'
+- name: Extract oc-mirror
+  become: true
+  ansible.builtin.unarchive:
+    src: "/home/{{ vm_user }}/{{ ocp4_oc_mirror_archive }}"
+    dest: /usr/local/bin
+    remote_src: true
+    mode: 0755

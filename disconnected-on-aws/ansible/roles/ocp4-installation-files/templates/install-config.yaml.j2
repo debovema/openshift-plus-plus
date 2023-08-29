@@ -1,0 +1,40 @@
+apiVersion: v1
+baseDomain: {{ base_domain }}
+compute:
+- hyperthreading: Enabled
+  name: worker
+  replicas: {{ ocp4_hosts | selectattr('type', 'equalto', 'worker') | list | length }}
+controlPlane:
+  hyperthreading: Enabled
+  name: master
+  replicas: {{ ocp4_hosts | selectattr('type', 'equalto', 'master') | list | length }}
+metadata:
+  name: {{ cluster_name }}
+networking:
+  clusterNetwork:
+  - cidr: 10.128.0.0/14
+    hostPrefix: 23
+  machineNetwork:
+  - cidr: 10.0.0.0/16
+  networkType: OVNKubernetes
+  serviceNetwork:
+  - 172.30.0.0/16
+platform:
+  none: {}
+publish: External
+fips: false
+sshKey: |
+  {{ ssh_public_key }}
+pullSecret: |
+{{ ocp4_pull_secret | to_nice_json | indent(4, True) }}
+{% if additional_trust_bundle is defined %}
+additionalTrustBundle: |
+  {{ additional_trust_bundle | indent(2) }}
+{% endif %}
+imageContentSources:
+- mirrors:
+  - {{ public_dns_name }}:8443/{{ ocp4_org_name }}/openshift4
+  source: quay.io/openshift-release-dev/ocp-release
+- mirrors:
+  - {{ public_dns_name }}:8443/{{ ocp4_org_name }}/openshift4
+  source: quay.io/openshift-release-dev/ocp-v4.0-art-dev

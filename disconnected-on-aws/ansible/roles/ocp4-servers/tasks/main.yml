@@ -1,0 +1,72 @@
+- name: Install required packages
+  become: true
+  ansible.builtin.package:
+    name:
+    - bind
+    - bind-utils
+    - firewalld
+    - haproxy
+    - httpd
+    state: present
+- name: Allow HAProxy to bind sockets
+  become: true
+  ansible.posix.seboolean:
+    name: haproxy_connect_any
+    state: true
+    persistent: true
+- name: Change httpd listening port
+  become: true
+  ansible.builtin.lineinfile:
+    dest: /etc/httpd/conf/httpd.conf
+    regexp: "^Listen 80"
+    line: "Listen 8080"
+    state: present
+- name: Enable and restart firewalld service
+  become: true
+  ansible.builtin.service:
+    name: firewalld
+    enabled: yes
+    state: restarted
+- name: Add firewall rules for OCP
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: yes
+    immediate: yes
+    state: enabled
+  loop:
+  - 22623/tcp
+  - 6443/tcp
+- name: Add firewall rules for HTTP server for ignition files
+  become: true
+  ansible.posix.firewalld:
+    port: "8080/tcp"
+    permanent: yes
+    immediate: yes
+    state: enabled
+- name: Add firewall rule for DNS
+  become: true
+  ansible.posix.firewalld:
+    zone: public
+    service: dns
+    permanent: true
+    state: enabled
+    immediate: true
+- name: Enable and restart DNS service
+  become: true
+  ansible.builtin.service:
+    name: named
+    enabled: yes
+    state: restarted
+- name: Enable and restart HAProxy service
+  become: true
+  ansible.builtin.service:
+    name: haproxy
+    enabled: yes
+    state: restarted
+- name: Enable and restart httpd service
+  become: true
+  ansible.builtin.service:
+    name: httpd
+    enabled: yes
+    state: restarted

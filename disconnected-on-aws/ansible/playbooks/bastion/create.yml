@@ -1,0 +1,93 @@
+- name: Create an EC2 instance for services to install OCP
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Create SSH key pair # not really a pair but that's how AWS call it...
+      amazon.aws.ec2_key:
+        name: "{{ ssh_key_pair_name }}"
+        key_material: "{{ ssh_public_key }}"
+      register: ec2_key_pair
+## Security groups
+    - name: Security group for remote SSH access
+      amazon.aws.ec2_security_group:
+        name: "ssh"
+        description: "Remote SSH access"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ aws_default_region }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 22
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on port 22
+    - name: Enable HTTP access for ignition web server
+      amazon.aws.ec2_security_group:
+        name: "ignition"
+        description: "Ignition Web server"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ aws_default_region }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 8080
+            cidr_ip: 0.0.0.0/0 # TODO: change to allow only required subnet
+            rule_desc: allow all on port 8080
+    - name: Enable HTTPS access for Quay registry server
+      amazon.aws.ec2_security_group:
+        name: "quay"
+        description: "Quay registry"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ aws_default_region }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 8443 # Quay secure
+            cidr_ip: 0.0.0.0/0
+            rule_desc: allow all on Quay port
+      delegate_to: localhost
+## EC2 instance for OCP4 installation services
+    - name: Create VM for OCP4 installation services
+      amazon.aws.ec2_instance:
+        state: present
+        name: "ocp4-services"
+        key_name: "{{ ec2_key_pair.key.name }}"
+        vpc_subnet_id: "{{ vpc_public_subnet_ids[0] }}"
+        instance_type: m5a.xlarge
+        security_groups:
+          - ignition
+          - quay
+          - ssh
+        network:
+          assign_public_ip: true
+        volumes:
+          - device_name: /dev/sda1
+            ebs:
+              volume_size: 1100
+              delete_on_termination: true
+        image_id: "{{ rhel_ami_id }}"
+        tags:
+          Scope: Transverse
+          Kind: "Installation Services"
+      register: ocp4_services
+    - name: Allocate an EIP for the OCP4 installation services VM
+      amazon.aws.ec2_eip:
+        device_id: "{{ ocp4_services.instances[0].instance_id }}"
+    - name: Ensure directory for inventory exists
+      ansible.builtin.file:
+        path: "../../ocp4"
+        state: directory
+        mode: '0755'
+    - name: Write inventory file for this instance
+      ansible.builtin.copy:
+        dest: "../../ocp4/bastion.yml" # TODO : put this path in a variable
+        content: |
+          bastion:
+            vars:
+              installation_services_vm_ip: {{ ocp4_services.instances[0].private_ip_address }}
+              public_dns_name: {{ ocp4_services.instances[0].public_dns_name }}
+            hosts:
+              {{ ocp4_services.instances[0].public_dns_name }}:
+                ansible_ssh_private_key_file: {{ ssh_private_key_file }}
+                ansible_user: {{ vm_user }}
+        mode: '0755'

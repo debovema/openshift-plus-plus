@@ -1,0 +1,15 @@
+quay_directory: ~/quay
+quay_root: "{{ quay_directory }}/install"
+quay_storage: "{{ quay_directory }}/storage"
+quay_pg_data: "{{ quay_directory }}/pg-data"
+quay_init_username: admin
+quay_init_password: quayadmin123
+quay_init_email: quayadmin@redhat.io
+
+ocp4_org_name: ocp4
+
+local_registry: "{{ public_dns_name }}:8443"
+local_repository: "{{ ocp4_org_name }}/openshift4"
+product_repo: "openshift-release-dev"
+release_name: "ocp-release"
+architecture: "x86_64"

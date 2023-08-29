@@ -1,0 +1,39 @@
+- name: Create an EC2 instance with RHCOS and ignition in user data
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Define OCP4 hosts IPs
+      ansible.builtin.set_fact:
+        ocp4_hosts_ips: "{{ lookup('template', './ocp4_hosts_ips.j2') }}"
+    - name: Create SSH key pair # not really a pair but that's how AWS call it...
+      amazon.aws.ec2_key:
+        name: "{{ ssh_key_pair_name }}"
+        key_material: "{{ ssh_public_key }}"
+      register: ec2_key_pair
+    - name: Create OCP4 instance
+      amazon.aws.ec2_instance:
+        state: present
+        name: "{{ cluster_name }}-{{ item.name }}"
+        vpc_subnet_id: "{{ vpc_private_subnet_ids[i % (vpc_private_subnets_cidrs | length)] }}"
+        instance_type: m5a.xlarge
+        security_groups:
+          - ssh
+        user_data: "{{ lookup('template', '../../ocp4/user-data/{{ item.type }}') | string }}"
+        network:
+          assign_public_ip: false
+          private_ip_address: "{{ ocp4_hosts_ips[i] }}"
+        image_id: "{{ rhcos_ami_id }}"
+        tags:
+          Scope: "OCP4 Cluster"
+          Kind: "{{ item.type }}"
+      loop: "{{ ocp4_hosts }}"
+      loop_control:
+        index_var: i
