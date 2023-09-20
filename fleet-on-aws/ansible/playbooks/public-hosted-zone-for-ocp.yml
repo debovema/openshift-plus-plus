@@ -1,0 +1,39 @@
+- name: Create public hosted zone in Route53 for OCP4 cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Check whether OPENSHIFT_BASE_DOMAIN environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_BASE_DOMAIN environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_BASE_DOMAIN"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Set OpenShift base domain
+      ansible.builtin.set_fact:
+        openshift_base_domain: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_BASE_DOMAIN') }}"
+    - name: Create public hosted zone
+      amazon.aws.route53_zone:
+        zone: "{{ cluster_name }}.{{ openshift_base_domain }}"
+        comment: "Public hosted zone for '{{ cluster_name }}' OCP4 cluster"
+      register: route53_zone
+    - name: Get details of the created hosted zone
+      amazon.aws.route53_info:
+        query: hosted_zone
+        hosted_zone_id: "{{ route53_zone.zone_id }}"
+        hosted_zone_method: details
+      register: route53_zone_details
+    - name: Add delegation records in the parent zone
+      amazon.aws.route53:
+        state: present
+        zone: "{{ openshift_base_domain }}"
+        record: "{{ cluster_name }}.{{ openshift_base_domain }}"
+        type: NS
+        ttl: 300
+        value: "{{ route53_zone_details.DelegationSet.NameServers }}"
+        wait: true

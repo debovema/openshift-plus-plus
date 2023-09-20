@@ -1,0 +1,140 @@
+- name: Create VPC for OCP4 cluster
+  hosts: localhost
+  connection: local
+  gather_facts: false
+  vars:
+    azs:
+      - "a"
+      - "b"
+    nat_gateway_in_each_az: false
+    vpc_cidr_block: "10.0.0.0/16"
+  tasks:
+    - name: Check whether CLUSTER_NAME environment variable exists
+      ansible.builtin.fail:
+        msg: "The CLUSTER_NAME environment variable is not set!"
+      when: not (lookup('env', "CLUSTER_NAME"))
+    - name: Set cluster name
+      ansible.builtin.set_fact:
+        cluster_name: "{{ lookup('ansible.builtin.env', 'CLUSTER_NAME') }}"
+    - name: Set AWS region
+      ansible.builtin.set_fact:
+        aws_region: "{{ lookup('ansible.builtin.env', 'AWS_DEFAULT_REGION') }}"
+    - name: Create VPC
+      amazon.aws.ec2_vpc_net:
+        name: "{{ cluster_name }}"
+        cidr_block: "{{ vpc_cidr_block }}"
+      register: vpc
+    - name: Create Internet gateway
+      amazon.aws.ec2_vpc_igw:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-igw"
+      register: igw
+    - name: Create public subnets for AZs
+      amazon.aws.ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-subnet-public{{ az_index + 1 }}-{{ aws_region }}{{ item }}"
+        az: "{{ aws_region }}{{ item }}"
+        cidr: "{{ vpc_cidr_block | ansible.utils.ipsubnet(20, az_index) }}"
+      loop: "{{ azs }}"
+      loop_control:
+        index_var: az_index
+      register: public_subnets
+    - name: Create private subnets for AZs
+      amazon.aws.ec2_vpc_subnet:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-subnet-private{{ az_index + 1 }}-{{ aws_region }}{{ item }}"
+        az: "{{ aws_region }}{{ item }}"
+        cidr: "{{ vpc_cidr_block | ansible.utils.ipsubnet(20, (public_subnets.results | length) + az_index) }}"
+      loop: "{{ azs }}"
+      loop_control:
+        index_var: az_index
+      register: private_subnets
+    - name: List public subnets IDs
+      ansible.builtin.set_fact:
+        public_subnet_ids: "{{ public_subnets.results | map(attribute='subnet') | map(attribute='id') }}"
+    - name: List private subnets IDs
+      ansible.builtin.set_fact:
+        private_subnet_ids: "{{ private_subnets.results | map(attribute='subnet') | map(attribute='id') }}"
+    - name: Create custom route table for public subnets
+      amazon.aws.ec2_vpc_route_table:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-rtb-public"
+        subnets: "{{ public_subnet_ids }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ igw.gateway_id }}"
+    - name: Create NAT gateway
+      amazon.aws.ec2_vpc_nat_gateway:
+        state: present
+        if_exist_do_not_create: true
+        subnet_id: "{{ public_subnets.results[0].subnet.id }}" # only one NAT for all AZs: take the first AZ
+        tags:
+          Name: "{{ cluster_name }}-nat-public1-{{ public_subnets.results[0].subnet.availability_zone }}"
+        wait: true
+      register: natgw
+      when: nat_gateway_in_each_az is false
+    - name: Create NAT gateways
+      amazon.aws.ec2_vpc_nat_gateway:
+        state: present
+        if_exist_do_not_create: true
+        subnet_id: "{{ item.subnet.id }}"
+        tags:
+          Name: "{{ cluster_name }}-nat-public{{ subnet_index + 1 }}-{{ item.subnet.availability_zone }}"
+        wait: true
+      loop: "{{ public_subnets.results }}"
+      loop_control:
+        index_var: subnet_index
+      register: natgws
+      when: nat_gateway_in_each_az is true
+    - name: Create custom route table for private subnets (single NAT gateway)
+      amazon.aws.ec2_vpc_route_table:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-rtb-private{{ subnet_index + 1 }}-{{ item.subnet.availability_zone }}"
+        subnets:
+          - "{{ item.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ natgw.nat_gateway_id }}"
+      loop: "{{ private_subnets.results }}"
+      loop_control:
+        index_var: subnet_index
+      when: nat_gateway_in_each_az is false
+    - name: Create custom route table for private subnets (multiple NAT gateways)
+      amazon.aws.ec2_vpc_route_table:
+        state: present
+        vpc_id: "{{ vpc.vpc.id }}"
+        tags:
+          Name: "{{ cluster_name }}-rtb-private{{ subnet_index + 1 }}-{{ item.subnet.availability_zone }}"
+        subnets:
+          - "{{ item.subnet.id }}"
+        routes:
+          - dest: 0.0.0.0/0
+            gateway_id: "{{ natgws.results[subnet_index].nat_gateway_id }}"
+      loop: "{{ private_subnets.results }}"
+      loop_control:
+        index_var: subnet_index
+      when: nat_gateway_in_each_az is true
+    - name: List all subnets in VPC
+      ansible.builtin.set_fact:
+        vpc_subnets: "{{ public_subnet_ids | union(private_subnet_ids) | join('\\n    - ') }}"
+    - name: Ensure a directory exists for the cluster {{ cluster_name }}
+      ansible.builtin.file:
+        dest: "{{ playbook_dir }}/../../clusters/{{ cluster_name }}"
+        state: directory
+        mode: '0755'
+    - name: Export the VPC subnets
+      ansible.builtin.copy:
+        content: |
+          export VPC_SUBNETS="\n    - {{ vpc_subnets }}"
+        dest: "{{ playbook_dir }}/../../clusters/{{ cluster_name }}/vpc_subnets_export"
+        mode: '0755'
