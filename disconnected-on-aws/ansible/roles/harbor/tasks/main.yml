@@ -1,0 +1,34 @@
+- name: Install Docker
+  ansible.builtin.include_role:
+    name: geerlingguy.docker
+  vars:
+    docker_users: [ "ec2-user" ]
+
+- name: Install Harbor
+  ansible.builtin.include_role:
+    name: robertdebock.harbor
+  vars:
+    # harbor_installation_type: offline
+    harbor_hostname: "{{ public_dns_name | mandatory }}"
+
+- name: Enable and restart firewalld service
+  become: true
+  ansible.builtin.service:
+    name: firewalld
+    enabled: true
+    state: restarted
+
+- name: Add firewall rules for Harbor
+  become: true
+  ansible.posix.firewalld:
+    port: "{{ item }}"
+    permanent: true
+    immediate: true
+    state: enabled
+  loop:
+    - 80/tcp
+
+- name: Setup Harbor (create project, robot account, etc.)
+  ansible.builtin.include_role:
+    name: harbor
+    tasks_from: setup.yml

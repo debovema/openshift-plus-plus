@@ -1,0 +1,22 @@
+- name: Check whether OPENSHIFT_PULL_SECRET environment variable exists
+  ansible.builtin.fail:
+    msg: "The OPENSHIFT_PULL_SECRET environment variable is not set!"
+  when: not (lookup('env', "OPENSHIFT_PULL_SECRET"))
+
+- name: Set OpenShift pull secret
+  ansible.builtin.set_fact:
+    ocp4_pull_secret: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_PULL_SECRET') }}"
+
+- name: Add mirror credentials to the pull secret
+  ansible.builtin.set_fact:
+    ocp4_pull_secret: |
+      {{ ocp4_pull_secret | combine(
+        {
+          'auths': {
+            (ocp4_mirror_registry): {
+              'auth': ((ocp4_mirror_registry_user + ":" + ocp4_mirror_registry_password) | b64encode)
+            }
+          }
+        }, recursive=True
+      )}}
+  when: ocp4_mirror_registry is defined and ocp4_mirror_registry != ""

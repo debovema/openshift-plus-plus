@@ -1,0 +1,6 @@
+- ansible.builtin.import_playbook: network/vpc-for-ocp.yml
+- ansible.builtin.import_playbook: bastion/create.yml
+- ansible.builtin.import_playbook: bastion/install.yml
+- ansible.builtin.import_playbook: quay/install.yml
+- ansible.builtin.import_playbook: quay/create-mirror.yml
+- ansible.builtin.import_playbook: disconnected-ocp4-install.yml

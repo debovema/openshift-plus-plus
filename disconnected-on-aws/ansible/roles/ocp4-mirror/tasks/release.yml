@@ -1,0 +1,24 @@
+- name: Copy pull-secret
+  ansible.builtin.copy:
+    content: "{{ ocp4_pull_secret }}"
+    dest: "~/pull-secret"
+    mode: "0600"
+- name: Mirror OpenShift release images
+  ansible.builtin.debug:
+    msg: >
+      oc adm release mirror -a {{ ocp4_pull_secret_file }}
+      --insecure=true
+      --from={{ ocp4_mirror_from | mandatory }}
+      --to={{ ocp4_mirror_to | mandatory }}
+      --to-release-image={{ ocp4_mirror_to_release_image | mandatory }}
+      2>&1 | tee /home/{{ ansible_user }}/oc.log
+- name: Mirror OpenShift release images
+  ansible.builtin.shell: >
+    oc adm release mirror -a {{ ocp4_pull_secret_file }}
+    --insecure=true
+    --from={{ ocp4_mirror_from | mandatory }}
+    --to={{ ocp4_mirror_to | mandatory }}
+    --to-release-image={{ ocp4_mirror_to_release_image | mandatory }}
+    2>&1 | tee /home/{{ ansible_user }}/oc.log
+
+# TODO : check return value

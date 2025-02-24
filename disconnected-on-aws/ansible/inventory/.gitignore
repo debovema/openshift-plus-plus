@@ -1,0 +1,5 @@
+group_vars/all.yml
+bastion.yml
+harbor*.yml
+quay*.yml
+vpc.yml

@@ -33,8 +33,8 @@ additionalTrustBundle: |
 {% endif %}
 imageContentSources:
 - mirrors:
-  - {{ public_dns_name }}:8443/{{ ocp4_org_name }}/openshift4
+  - {{ ocp4_mirror_to }}
   source: quay.io/openshift-release-dev/ocp-release
 - mirrors:
-  - {{ public_dns_name }}:8443/{{ ocp4_org_name }}/openshift4
+  - {{ ocp4_mirror_to }}
   source: quay.io/openshift-release-dev/ocp-v4.0-art-dev

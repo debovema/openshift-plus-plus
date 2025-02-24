@@ -24,7 +24,7 @@
   - "{{ quay_directory }}"
 - name: Copy registries authentication file
   ansible.builtin.copy:
-    content: "{{ registries_auth }}"
+    content: "{{ ocp4_pull_secret }}"
     dest: "~/.docker/config.json"
     mode: "0600"
 - name: Enable and restart firewalld service

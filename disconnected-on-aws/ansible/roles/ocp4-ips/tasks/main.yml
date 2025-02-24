@@ -1,0 +1,6 @@
+- name: Define OCP4 hosts IPs
+  ansible.builtin.set_fact:
+    ocp4_hosts_ips: "{{ lookup('template', 'ocp4_hosts_ips.j2') }}"
+    ocp4_bootstrap_ip: "{{ lookup('template', 'ocp4_bootstrap_ip.j2') }}"
+    ocp4_masters_ips: "{{ lookup('template', 'ocp4_masters_ips.j2') }}"
+    ocp4_workers_ips: "{{ lookup('template', 'ocp4_workers_ips.j2') }}"

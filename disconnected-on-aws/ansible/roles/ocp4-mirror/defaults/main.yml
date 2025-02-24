@@ -1,0 +1,4 @@
+ocp4_pull_secret_file: "/home/{{ ansible_user }}/pull-secret"
+ocp4_mirror_product_repo: "openshift-release-dev"
+ocp4_mirror_release_name: "ocp-release"
+ocp4_mirror_architecture: "x86_64"

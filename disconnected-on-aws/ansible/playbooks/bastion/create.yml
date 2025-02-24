@@ -33,6 +33,18 @@
               - 8080
             cidr_ip: 0.0.0.0/0 # TODO: change to allow only required subnet
             rule_desc: allow all on port 8080
+    - name: Enable HTTP access for Harbor
+      amazon.aws.ec2_security_group:
+        name: "harbor"
+        description: "Harbor"
+        vpc_id: "{{ vpc_id }}"
+        region: "{{ aws_default_region }}"
+        rules:
+          - proto: tcp
+            ports:
+              - 80
+            cidr_ip: 0.0.0.0/0 # TODO: change to allow only required subnet
+            rule_desc: allow all on port 80
     - name: Enable HTTPS access for Quay registry server
       amazon.aws.ec2_security_group:
         name: "quay"
@@ -55,39 +67,53 @@
         vpc_subnet_id: "{{ vpc_public_subnet_ids[0] }}"
         instance_type: m5a.xlarge
         security_groups:
+          - harbor
           - ignition
           - quay
           - ssh
         network:
-          assign_public_ip: true
+          assign_public_ip: false
         volumes:
           - device_name: /dev/sda1
             ebs:
               volume_size: 1100
               delete_on_termination: true
         image_id: "{{ rhel_ami_id }}"
+        wait: true
         tags:
           Scope: Transverse
           Kind: "Installation Services"
-      register: ocp4_services
+      register: ocp4_services_vm
     - name: Allocate an EIP for the OCP4 installation services VM
       amazon.aws.ec2_eip:
-        device_id: "{{ ocp4_services.instances[0].instance_id }}"
-    - name: Ensure directory for inventory exists
-      ansible.builtin.file:
-        path: "../../ocp4"
-        state: directory
-        mode: '0755'
+        device_id: "{{ ocp4_services_vm.instances[0].instance_id }}"
+        release_on_disassociation: true
+      register: eip
+    - name: Refresh info of the OCP4 installation services VM
+      amazon.aws.ec2_instance_info:
+        instance_ids:
+          - "{{ ocp4_services_vm.instances[0].instance_id }}"
+      register: ocp4_services_vm
     - name: Write inventory file for this instance
       ansible.builtin.copy:
-        dest: "../../ocp4/bastion.yml" # TODO : put this path in a variable
+        dest: "{{ inventory_dir }}/bastion.yml"
         content: |
           bastion:
             vars:
-              installation_services_vm_ip: {{ ocp4_services.instances[0].private_ip_address }}
-              public_dns_name: {{ ocp4_services.instances[0].public_dns_name }}
+              bastion_host_name: {{ ocp4_services_vm.instances[0].instance_id }}
+              installation_services_vm_ip: {{ ocp4_services_vm.instances[0].private_ip_address }}
+              public_dns_name: {{ ocp4_services_vm.instances[0].public_dns_name }}
             hosts:
-              {{ ocp4_services.instances[0].public_dns_name }}:
-                ansible_ssh_private_key_file: {{ ssh_private_key_file }}
-                ansible_user: {{ vm_user }}
+              {{ ocp4_services_vm.instances[0].instance_id }}:
+                ansible_ssh_private_key_file: '{{ ssh_private_key_file }}'
+                ansible_user: '{{ vm_user }}'
+                ansible_host: '{{ eip.public_ip }}'
         mode: '0755'
+    - name: Refresh inventory
+      ansible.builtin.meta: refresh_inventory
+- name: Wait for SSH connection
+  hosts: bastion
+  gather_facts: false
+  tasks:
+    - name: Waiting for SSH connection...
+      ansible.builtin.wait_for_connection:

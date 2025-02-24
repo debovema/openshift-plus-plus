@@ -1,0 +1,3 @@
+- ansible.builtin.import_playbook: ocp4/prepare-installation.yml
+- ansible.builtin.import_playbook: ocp4/dns-and-lbs.yml
+- ansible.builtin.import_playbook: ocp4/create-vms.yml

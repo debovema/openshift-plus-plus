@@ -1,0 +1,11 @@
+- name: Mirror OpenShift installation images to mirror
+  hosts: bastion
+  gather_facts: false
+  tasks:
+  - name: Init mirror and OpenShift credentials
+    ansible.builtin.include_role:
+      name: ocp4-pull-secret
+  - name: Mirror OpenShift release images to mirror
+    ansible.builtin.include_role:
+      name: ocp4-mirror
+      tasks_from: release.yml

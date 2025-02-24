@@ -1,0 +1,35 @@
+- name: Add API Load Balancer as an alias A record for api.{{ cluster_name + "." + openshift_base_domain }}
+  amazon.aws.route53:
+    state: present
+    zone: "{{ openshift_base_domain }}"
+    record: "api.{{ cluster_name }}.{{ openshift_base_domain }}"
+    type: A
+    alias: true
+    value: "{{ api_lb.dns_name }}."
+    alias_hosted_zone_id: "{{ api_lb.canonical_hosted_zone_id }}"
+    overwrite: true
+    wait: true
+
+- name: Add API Internal Load Balancer as an alias A record for api-int.{{ cluster_name + "." + openshift_base_domain }}
+  amazon.aws.route53:
+    state: present
+    zone: "{{ openshift_base_domain }}"
+    record: "api-int.{{ cluster_name }}.{{ openshift_base_domain }}"
+    type: A
+    alias: true
+    value: "{{ api_lb.dns_name }}."
+    alias_hosted_zone_id: "{{ api_lb.canonical_hosted_zone_id }}"
+    overwrite: true
+    wait: true
+
+- name: Add apps Load Balancer as an alias A record for *.apps.{{ cluster_name + "." + openshift_base_domain }}
+  amazon.aws.route53:
+    state: present
+    zone: "{{ openshift_base_domain }}"
+    record: "*.apps.{{ cluster_name }}.{{ openshift_base_domain }}"
+    type: A
+    alias: true
+    value: "{{ apps_lb.dns_name }}."
+    alias_hosted_zone_id: "{{ apps_lb.canonical_hosted_zone_id }}"
+    overwrite: true
+    wait: true

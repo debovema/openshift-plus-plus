@@ -2,35 +2,6 @@
   hosts: bastion
   gather_facts: true
   become: true
-  pre_tasks:
-    - name: Check whether OPENSHIFT_PULL_SECRET environment variable exists
-      ansible.builtin.fail:
-        msg: "The OPENSHIFT_PULL_SECRET environment variable is not set!"
-      when: not (lookup('env', "OPENSHIFT_PULL_SECRET"))
-    - name: Set OpenShift pull secret
-      ansible.builtin.set_fact:
-        registries_auth: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_PULL_SECRET') }}"
   roles:
-    - role: geerlingguy.docker
-      vars:
-        docker_users: ["ec2-user"]
-    - role: robertdebock.harbor
-      vars:
-        # harbor_installation_type: offline
-        harbor_hostname: "{{ public_dns_name }}"
-  tasks:
-    - name: Enable and restart firewalld service
-      become: true
-      ansible.builtin.service:
-        name: firewalld
-        enabled: yes
-        state: restarted
-    - name: Add firewall rules for Quay
-      become: true
-      ansible.posix.firewalld:
-        port: "{{ item }}"
-        permanent: yes
-        immediate: yes
-        state: enabled
-      loop:
-      - 80/tcp
+  - role: ocp4-pull-secret
+  - role: harbor

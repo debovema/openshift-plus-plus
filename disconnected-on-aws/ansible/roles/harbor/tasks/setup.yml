@@ -1,0 +1,83 @@
+- name: Update inventory to add bastion in Harbor group
+  ansible.builtin.copy:
+    content: |
+      harbor:
+        hosts:
+          {{ bastion_host_name }}:
+    dest: "{{ inventory_dir }}/harbor-group.yml"
+    mode: '0755'
+  become: false
+  delegate_to: localhost
+
+- name: Refresh inventory
+  ansible.builtin.meta: refresh_inventory
+
+- name: Create an OpenShift project in Harbor
+  ansible.builtin.shell: |
+    curl -H 'Authorization: Basic {{ ("admin:" + harbor_admin_password) | b64encode }}' \
+         -H 'Content-Type: application/json' \
+         --data '{"project_name": "{{ harbor_project_name }}", "public": true, "storage_limit": 0}' \
+         http://{{ public_dns_name }}/api/v2.0/projects
+  register: openshift_project
+
+- name: Fail if the project creation failed
+  ansible.builtin.fail:
+    msg: "Failed to create the OpenShift project in Harbor"
+  when:
+    - openshift_project.stdout != ""
+    - openshift_project.stdout | from_json is mapping
+    - "'errors' in (openshift_project.stdout | from_json)"
+    - openshift_project.stdout | from_json | json_query('errors[*].code') | select('ne', 'CONFLICT') | list | length > 0
+
+- name: Create a robot account in the OpenShift project
+  ansible.builtin.shell: |
+    curl -H 'Authorization: Basic {{ ("admin:" + harbor_admin_password) | b64encode }}' \
+        -H 'Content-Type: application/json' \
+        --data '{
+          "name": "{{ harbor_robot_account_name }}",
+          "level": "project",
+          "duration": -1,
+          "permissions": [{
+            "access": [{"action": "push", "resource": "repository"}],
+            "kind": "project",
+            "namespace": "{{ harbor_project_name }}"
+          }]
+        }' \
+        http://{{ public_dns_name }}/api/v2.0/robots
+  register: robot_account
+
+- name: Fail if the robot account failed (except if it already exists)
+  ansible.builtin.fail:
+    msg: "Failed to create the OpenShift project in Harbor"
+  when:
+    - openshift_project.stdout != ""
+    - openshift_project.stdout | from_json is mapping
+    - "'errors' in (openshift_project.stdout | from_json)"
+    - openshift_project.stdout | from_json | json_query('errors[*].code') | select('ne', 'CONFLICT') | list | length > 0
+
+- name: Set fact for robot account secret
+  ansible.builtin.set_fact:
+    harbor_robot_secret: "{{ robot_account.stdout | from_json | json_query('secret') }}"
+
+- name: Update inventory with Harbor credentials
+  ansible.builtin.copy:
+    content: |
+      all:
+        vars:
+          harbor_openshift_robot_account_name: "robot${{ harbor_project_name }}+{{ harbor_robot_account_name }}"
+          harbor_openshift_robot_account_token: "{{ harbor_robot_secret }}"
+    dest: "{{ inventory_dir }}/harbor-credentials.yml"
+    mode: '0755'
+  delegate_to: localhost
+  when: harbor_robot_secret != ""
+
+- name: Refresh inventory
+  ansible.builtin.meta: refresh_inventory
+
+- name: Fail if the robot account token does not exist in inventory
+  ansible.builtin.fail:
+    msg: >-
+      The Harbor robot account token is not set in inventory!
+      Remove the Harbor robot account and run the playbook again.
+  when:
+    - harbor_openshift_robot_account_token is not defined or harbor_openshift_robot_account_token == ""

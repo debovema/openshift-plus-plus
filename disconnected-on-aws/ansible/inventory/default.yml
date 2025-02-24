@@ -1,0 +1,67 @@
+all:
+  vars:
+    ## SSH
+    # SSH key to use (default: ~/.ssh/aws)
+    ssh_private_key_file: "{{ lookup('env', 'HOME') + '/.ssh/aws' }}"
+    ssh_public_key_file: "{{ lookup('env', 'HOME') + '/.ssh/aws.pub' }}"
+    ssh_public_key: "{{ lookup('file', ssh_public_key_file) }}"
+    # name of the EC2 key pair to create
+    ssh_key_pair_name: my-ssh-key
+
+    ## AWS
+    aws_default_region: eu-west-1
+    rhcos_ami_id: ami-08deea69e2b3cb279 # TODO: replace with RHCOS AMI
+    rhel_ami_id: ami-07d4917b6f95f5c2a # TODO: replace with RHEL 9 AMI
+    vm_user: "ec2-user"
+
+    ## Mirroring (All)
+    ocp4_mirror_from: 'quay.io/{{ ocp4_mirror_product_repo }}/{{ ocp4_mirror_release_name }}:{{ ocp4_version }}-{{ ocp4_mirror_architecture }}'
+    product_repo: "openshift-release-dev"
+    release_name: "ocp-release"
+    architecture: "x86_64"
+
+    ## OCP4
+    ocp4_version: 4.16.34
+    ocp4_hosts: # the VMs in the cluster
+    - name: bootstrap
+      type: bootstrap
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+    - name: master0
+      type: master
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+    - name: master1
+      type: master
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+    - name: master2
+      type: master
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+    - name: worker0
+      type: worker
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+    - name: worker1
+      type: worker
+      hardware:
+        memory_mb: 16384
+        num_cpus: 4
+
+harbor:
+  vars:
+    harbor_admin_password: 'ChangeMeWithAStrongPassword'
+    harbor_project_name: "openshift"
+    harbor_project_push_url: "{{ public_dns_name }}/{{ harbor_project_name }}"
+    harbor_robot_account_name: "robot-openshift"
+    ocp4_mirror_registry: '{{ public_dns_name }}/{{ harbor_project_name }}'
+    ocp4_mirror_registry_user: '{{ harbor_openshift_robot_account_name }}'
+    ocp4_mirror_registry_password: '{{ harbor_openshift_robot_account_token }}'
+    ocp4_mirror_to: "{{ harbor_project_push_url }}/{{ harbor_project_name }}"
+    ocp4_mirror_to_release_image: "{{ harbor_project_push_url }}/{{ harbor_project_name }}:{{ ocp4_version }}-{{ architecture }}"
