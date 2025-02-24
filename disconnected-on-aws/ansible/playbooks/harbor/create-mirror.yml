@@ -1,0 +1,18 @@
+- name: Mirror OpenShift installation images in a Quay registry
+  hosts: bastion
+  gather_facts: false
+  pre_tasks:
+    - name: Check whether OPENSHIFT_PULL_SECRET environment variable exists
+      ansible.builtin.fail:
+        msg: "The OPENSHIFT_PULL_SECRET environment variable is not set!"
+      when: not (lookup('env', "OPENSHIFT_PULL_SECRET"))
+    - name: Set OpenShift pull secret
+      ansible.builtin.set_fact:
+        ocp4_pull_secret: "{{ lookup('ansible.builtin.env', 'OPENSHIFT_PULL_SECRET') }}"
+  tasks:
+    - ansible.builtin.debug:
+        msg: |
+          curl -H 'Authorization: Basic {{ "admin:Harbor12345" | b64encode }}' -H 'Content-Type: application/json' --data '{"project_name": "openshift", "public": true, "storage_limit": 0}' http://{{ public_dns_name }}/api/v2.0/projects
+    - name: Create an OpenShift project in Harbor
+      ansible.builtin.shell: |
+        curl -H 'Authorization: Basic {{ "admin:Harbor12345" | b64encode }}' -H 'Content-Type: application/json' --data '{"project_name": "openshift", "public": true, "storage_limit": 0}' http://{{ public_dns_name }}/api/v2.0/projects
