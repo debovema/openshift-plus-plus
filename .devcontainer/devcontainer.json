@@ -1,0 +1,15 @@
+{
+	"name": "Debian",
+	"image": "mcr.microsoft.com/devcontainers/base:bookworm",
+	"features": {
+		"ghcr.io/devcontainers-extra/features/ansible:2": {
+			"injections": "boto3 netaddr"
+		}
+	},
+	"remoteEnv": {
+		"PATH": "/usr/local/py-utils/venvs/ansible-core/bin:${containerEnv:PATH}"
+	},
+	"containerEnv": {
+		// "ANSIBLE_PYTHON_INTERPRETER": "/usr/local/py-utils/venvs/ansible-core/bin/python3"
+	}
+}
